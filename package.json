@@ -1,0 +1,17 @@
+{
+  "name": "pitch-detection",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "wad": "^0.1.0",
+    "web-audio-daw": "^4.13.2"
+  }
+}

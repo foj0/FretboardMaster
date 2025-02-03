@@ -1,0 +1,10 @@
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 20px;
+}
+
+#pitch {
+    font-size: 2rem;
+    color: #333;
+}
