@@ -1,39 +1,77 @@
 import Wad from 'web-audio-daw';
-import { toggleMetronome, loadClickSound } from './metronome.js';
-
+// import { toggleMetronome, loadClickSound } from './metronome.js';
+import { allNotesArray, naturalNotesArray } from './constants';
 // Global reference to the tuner and mic
 let tuner = null;
 let mic = null;
 let currentNote = null; // store the note currently being detected by mic
 let isListening = false;
-const naturalNotes = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-const accidentalNotes = [
-    "C#", "Db",
-    "D#", "Eb",
-    "E#", "Fb",
-    "F#", "Gb",
-    "G#", "Ab",
-    "A#", "Bb",
-    "B#", "Cb"
-];
-const allNotes = [
-    "C", "C#", "Db",
-    "D", "D#", "Eb",
-    "E", "E#", "Fb",
-    "F", "F#", "Gb",
-    "G", "G#", "Ab",
-    "A", "A#", "Bb",
-    "B", "B#", "Cb"
-];
 
-function updatePitch() {
-    currentNote = tuner.noteName;
+// metronome stuff
+
+let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+let isPlaying = false; // Tracks whether the metronome is running
+let tempo = 40.0; // BPM
+let nextNoteTime = 0.0; // When the next click should be scheduled
+let scheduleAheadTime = 0.1; // How far ahead to schedule audio (in seconds)
+let clickBuffer = null; // store the metronome click audio file
+
+// Ensures click sound is loaded once and can be reused efficiently
+async function loadClickSound(url) {
+    const response = await fetch(url); // waits until file is fully downloaded before moving to next line. Response stores the fetched data
+    const arrayBuffer = await response.arrayBuffer(); // converts file into raw binary data buffer, decodeAudioData requires this format.
+    clickBuffer = await audioContext.decodeAudioData(arrayBuffer); // decodes raw binary audio data into a format Webaudo API can use.
+}
+
+function checkCurrentNote() {
+    // const currentNote = getCurrentNote();
+    console.log(`Current Note: ${currentNote}`);
+}
+
+// Function to schedule clicks
+function scheduleClick(time) {
+    if (!clickBuffer) return; // ensure click sound is loaded
+
+    let source = audioContext.createBufferSource(); // creates an AudioBufferSourceNode, plays audio from buffer
+    source.buffer = clickBuffer;
+    source.connect(audioContext.destination);
+    source.start(time);
+    document.getElementById('target-note').innerText = `Target Note: ${generateRandomNote(0)}` // later make it so mode is a variable, that can change.
 }
 
 
+// Metronome scheduler
+function scheduler() {
+    // Schedules as many notes as fit in the schedule window. Higher bpm, more notes scheduled.
+    while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
+        scheduleClick(nextNoteTime);
+        nextNoteTime += 60.0 / tempo;
+    }
+
+    // checks every 25ms to see if it needs to schedules the next beat.
+    if (isPlaying) {
+        setTimeout(scheduler, 25);
+    }
+}
+
+
+// Start/stop
+function toggleMetronome() {
+    isPlaying = !isPlaying;
+
+    if (isPlaying) {
+        nextNoteTime = audioContext.currentTime;
+        scheduler();
+    }
+}
+
+
+// main app stuff
+
 function startListening() {
+    console.log("starting to listen");
     isListening = true;
-    document.getElementById('start-button').textContent = 'Stop';
+    // document.getElementById('start-button').textContent = 'Stop';
 
     // Create a Wad instance for the microphone only first time.
     // After we just reuse the same instances for mic/tuner.
@@ -61,11 +99,9 @@ function startListening() {
         // const currentPitch = tuner.pitch;
         const noteName = tuner.noteName || '--'; // Use '--' if no note detected
         currentNote = noteName // store current note being played to be exported into metronome
-        // console.log(currentNote);
-        // updatePitch();
 
         // Update the displayed note
-        document.getElementById('your-note').textContent = `Note: ${noteName}`;
+        document.getElementById('your-note').textContent = `Your Note: ${noteName}`;
 
         // Repeat detection
         requestAnimationFrame(detectPitch);
@@ -82,16 +118,15 @@ function stopListening() {
     // Clean up references
     if (mic) {
         mic.stop();
-        //mic = null;
     }
     if (tuner) {
         tuner.stopUpdatingPitch(); // Stop calculating the pitch if you don't need to know it anymore.
         tuner.stop();
-        //tuner = null;
     }
 
     // Reset the displayed note
-    document.getElementById('your-note').textContent = 'Note: --';
+    document.getElementById('your-note').textContent = 'Your Note: --';
+    document.getElementById('target-note').textContent = 'Target Note: --';
 }
 
 function startCountdown(seconds) {
@@ -110,16 +145,20 @@ function startCountdown(seconds) {
 // Toggle mic on/off
 function toggleListening() {
     if (!isListening) {
-        // startCountdown(3, countdown_text);
-        startListening();
+        document.getElementById('start-button').textContent = 'Stop';
+        // Maybe later add a countdown so user knows it worked.
+        setTimeout(startListening, 3000);
+        setTimeout(toggleMetronome, 3000);
     }
     else {
         stopListening();
+        toggleMetronome();
     }
-    toggleMetronome(); // turn metronome on/off
+    // toggleMetronome(); // turn metronome on/off
 }
 
 
+// TODO: Make it so it picks a different string and note each time. No repeats
 function generateRandomNote(mode) {
     if (mode == 0) {
         return naturalNotes[Math.floor(Math.random() * naturalNotes.length)];
@@ -136,8 +175,3 @@ loadClickSound("Perc_Clap_lo.wav");
 
 // Attach event listeners
 document.getElementById('start-button').addEventListener('click', toggleListening);
-let countdown_text = document.getElementById('countdown')
-
-export function getCurrentNote() {
-    return currentNote;
-}
