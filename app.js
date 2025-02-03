@@ -4,6 +4,7 @@ import { allNotesArray, naturalNotesArray } from './constants';
 // Global reference to the tuner and mic
 let tuner = null;
 let mic = null;
+let targetNote = null; // correct target note
 let currentNote = null; // store the note currently being detected by mic
 let isListening = false;
 
@@ -36,7 +37,31 @@ function scheduleClick(time) {
     source.buffer = clickBuffer;
     source.connect(audioContext.destination);
     source.start(time);
-    document.getElementById('target-note').innerText = `Target Note: ${generateRandomNote(0)}` // later make it so mode is a variable, that can change.
+
+    // Choose and display next target note
+    // targetNote = generateRandomNote(0);
+    targetNote = 'A2';
+    document.getElementById('target-note').innerText = `Target Note: ${targetNote}` // later make it so mode is a variable, that can change.
+
+    // If correct note is played, ding
+    // TODO: Have bool variable that stores whether the correct note has been played in this time window. If not, X, otherwise, ding.
+    if (currentNote == targetNote) {
+        playDing();
+    }
+}
+
+function playDing() {
+    let osc = audioContext.createOscillator();
+    let gainNode = audioContext.createGain();
+
+    osc.frequency.value = 1500;
+    gainNode.gain.value = 0.5;
+
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    osc.start();
+    osc.stop(audioContext.currentTime + 0.2);
 }
 
 
@@ -161,13 +186,13 @@ function toggleListening() {
 // TODO: Make it so it picks a different string and note each time. No repeats
 function generateRandomNote(mode) {
     if (mode == 0) {
-        return naturalNotes[Math.floor(Math.random() * naturalNotes.length)];
+        return naturalNotesArray[Math.floor(Math.random() * naturalNotesArray.length)];
     }
     else if (mode == 1) {
-        return accidentalNotes[Math.floor(Math.random() * naturalNotes.length)];
+        return accidentalNotesArray[Math.floor(Math.random() * naturalNotesArray.length)];
     }
     else if (mode == 2) {
-        return allNotes[Math.floor(Math.random() * naturalNotes.length)];
+        return allNotesArray[Math.floor(Math.random() * allNotesArray.length)];
     }
 }
 
