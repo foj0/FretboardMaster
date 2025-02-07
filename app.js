@@ -17,6 +17,33 @@ let nextNoteTime = 0.0; // When the next click should be scheduled
 let scheduleAheadTime = 0.1; // How far ahead to schedule audio (in seconds)
 let clickBuffer = null; // store the metronome click audio file
 
+
+// Makes Notes equal regardless of octave. A2 and A5 are equal. It's just A. A#2
+function isCorrectNotePlayed() {
+    let simpleTargetNote = null;
+    let simpleCurrentNote = null;
+    if (targetNote.includes('#')) {
+        simpleTargetNote = targetNote.slice(0, 2);
+    }
+    else {
+        simpleTargetNote = targetNote.slice(0, 1);
+    }
+    if (currentNote.includes('#')) {
+        simpleCurrentNote = currentNote.slice(0, 2);
+    }
+    else {
+        simpleCurrentNote = currentNote.slice(0, 1);
+    }
+
+    if (simpleCurrentNote == simpleTargetNote) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
+}
+
 // Ensures click sound is loaded once and can be reused efficiently
 async function loadClickSound(url) {
     const response = await fetch(url); // waits until file is fully downloaded before moving to next line. Response stores the fetched data
@@ -24,10 +51,6 @@ async function loadClickSound(url) {
     clickBuffer = await audioContext.decodeAudioData(arrayBuffer); // decodes raw binary audio data into a format Webaudo API can use.
 }
 
-function checkCurrentNote() {
-    // const currentNote = getCurrentNote();
-    console.log(`Current Note: ${currentNote}`);
-}
 
 // Function to schedule clicks
 function scheduleClick(time) {
@@ -39,17 +62,22 @@ function scheduleClick(time) {
     source.start(time);
 
     // Choose and display next target note
-    // targetNote = generateRandomNote(0);
-    targetNote = 'A2';
+    // targetNote = 'A2';
+    targetNote = generateRandomNote(0);
     document.getElementById('target-note').innerText = `Target Note: ${targetNote}` // later make it so mode is a variable, that can change.
 
     // If correct note is played, ding
     // TODO: Have bool variable that stores whether the correct note has been played in this time window. If not, X, otherwise, ding.
-    if (currentNote == targetNote) {
+    if (isCorrectNotePlayed()) {
         playDing();
+    }
+    else {
+        console.log('You are not playing the target note');
     }
 }
 
+
+// need to get better ding sound, but this works for now.
 function playDing() {
     let osc = audioContext.createOscillator();
     let gainNode = audioContext.createGain();
@@ -107,6 +135,7 @@ function startListening() {
     // Create a PolyWad to analyze pitch
     if (!tuner) {
         tuner = new Wad.Poly();
+        // tuner.setVolume(0); // mute feedback
         tuner.add(mic);
     }
 
