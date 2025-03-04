@@ -4,21 +4,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pitch Detection App</title>
+    <title>Fretboard Master</title>
     <!-- <link rel="stylesheet" href="style.css">-->
     <!--<script type="module" src="wad-master/build/wad.min.js"></script>-->
     <!-- <script type="module" src="wad-master/build/wad.min.js"></script> -->
+    <style>
+        div.confident {
+            color: black;
+        }
+
+        div.vague {
+            color: lightgrey;
+        }
+    </style>
 
 </head>
 
 <body>
     <h1>Pitch Detection App</h1>
-    <button id='start-button'>Start</button> <!--Make it be able to change to stop once pressed-->
-    <div id='countdown'></div>
-    <div id='target-note'>Target Note: --</div>
-    <div id='your-note'>Your Note: --</div>
 
-    <script type="module" src="app.js"></script>
+    <!-- <div id='countdown'></div> -->
+
+    <p>
+        <button id='toggleLive'>Toggle Live Input</button>
+        <button id='start-button'>Start Game</button> <!-- Button starts metronome and note generation-->
+    </p>
+    <div id='target-note'>Target Note: </div>
+    <div>Your Note: </div>
+    <!-- <div id='your-note'>Your Note: --</div> -->
+
+    <div id='detectorElem'>
+        <div id='pitch'></div> <!-- Pitch of mic detection -->
+        <div id='note'></div> <!-- Note user plays -->
+        <div id='detune'></div>
+        <div id='detune_amt'></div>
+    </div>
+    <!-- How off pitch from a perfect note detected sound is -->
+
+    <script type="module" src="new.js"></script>
 </body>
 
 </html>
