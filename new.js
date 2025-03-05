@@ -1,7 +1,8 @@
 window.AudioContext = window.AudioContext || window.webkitAudioContext;
 
+// Variables for pitch detection
 var audioContext = null;
-var isPlaying = false;
+var isListening = false; // bool for whether mic input is on
 var sourceNode = null;
 var analyser = null;
 var theBuffer = null;
@@ -16,7 +17,27 @@ var detectorElem,
     detuneAmount;
 
 ///////////////////////////////////////////////////////////////////////////////////////
+import Wad from 'web-audio-daw';
+import { allNotesArray, naturalNotesArray } from './constants';
+// Global reference to the tuner and mic
+let tuner = null;
+let mic = null;
+let targetNote = null; // correct target note
+let currentNote = null; // store the note currently being detected by mic
+//let isListening = false;
 
+// metronome stuff
+
+//let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+let isPlaying = false; // Tracks whether the metronome is running
+let tempo = 40.0; // BPM
+let nextNoteTime = 0.0; // When the next click should be scheduled
+let scheduleAheadTime = 0.1; // How far ahead to schedule audio (in seconds)
+let clickBuffer = null; // store the metronome click audio file
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+// FUnctions for pitch detection
 window.onload = function() {
     audioContext = new AudioContext();
     // Might not even need MAX_SIZE
@@ -74,12 +95,12 @@ function gotStream(stream) {
 
 // Toggle live mic input and processes it w/ Web Audio API
 function toggleLiveInput() {
-    if (isPlaying) {
+    if (isListening) {
         //stop playing and return
         //sourceNode.stop(0); // We're not actually using source node. That is only used for audio playback.
         //sourceNode = null;
         analyser = null;
-        isPlaying = false;
+        isListening = false;
         console.log("Turned input off");
         if (!window.cancelAnimationFrame)
             window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
@@ -93,7 +114,7 @@ function toggleLiveInput() {
         detuneAmount.innerText = "";
     }
     else {
-        isPlaying = true;
+        isListening = true;
         console.log("Turned input on");
 
         // Request mic access, passes audio constraints obj that disables browser audio processing features.
@@ -251,8 +272,9 @@ function updatePitch(time) {
         pitch = ac;
         pitchElem.innerText = Math.round(pitch);
         var note = noteFromPitch(pitch);
-        var octave = noteFromPitchWithOctave(pitch)
-        noteElem.innerHTML = noteStrings[note % 12] + octave;
+        var octave = noteFromPitchWithOctave(pitch);
+        currentNote = noteStrings[note % 12] + octave;
+        noteElem.innerHTML = currentNote;
         var detune = centsOffFromPitch(pitch, note);
         if (detune == 0) { // If note is not sharp or flat
             detuneElem.className = "";
@@ -274,5 +296,132 @@ function updatePitch(time) {
     // Repeatedly calls updatePitch, function is executed every frame, ensuring smooth real-time updates.
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+// Metronome functions
+
+
+// Ensures click sound is loaded once and can be reused efficiently
+async function loadClickSound(url) {
+    const response = await fetch(url); // waits until file is fully downloaded before moving to next line. Response stores the fetched data
+    const arrayBuffer = await response.arrayBuffer(); // converts file into raw binary data buffer, decodeAudioData requires this format.
+    clickBuffer = await audioContext.decodeAudioData(arrayBuffer); // decodes raw binary audio data into a format Webaudo API can use.
+}
+
+// Function to schedule clicks
+function scheduleClick(time) {
+    if (!clickBuffer) return; // ensure click sound is loaded
+
+    let source = audioContext.createBufferSource(); // creates an AudioBufferSourceNode, plays audio from buffer
+    source.buffer = clickBuffer;
+    source.connect(audioContext.destination);
+    source.start(time);
+
+    // Choose and display next target note
+    // targetNote = 'A2';
+    targetNote = generateRandomNote(0);
+    document.getElementById('target-note').innerText = `Target Note: ${targetNote}` // later make it so mode is a variable, that can change.
+
+    // If correct note is played, ding
+    // TODO: Have bool variable that stores whether the correct note has been played in this time window. If not, X, otherwise, ding.
+    if (isCorrectNotePlayed()) {
+        playDing();
+    }
+    else {
+        console.log('You are not playing the target note');
+    }
+}
+
+
+// need to get better ding sound, but this works for now.
+function playDing() {
+    let osc = audioContext.createOscillator();
+    let gainNode = audioContext.createGain();
+
+    osc.frequency.value = 1500;
+    gainNode.gain.value = 0.5;
+
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    osc.start();
+    osc.stop(audioContext.currentTime + 0.2);
+}
+
+
+// Metronome scheduler
+function scheduler() {
+    // Schedules as many notes as fit in the schedule window. Higher bpm, more notes scheduled.
+    while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
+        scheduleClick(nextNoteTime);
+        nextNoteTime += 60.0 / tempo;
+    }
+
+    // checks every 25ms to see if it needs to schedules the next beat.
+    if (isPlaying) {
+        setTimeout(scheduler, 25);
+    }
+}
+
+
+// Start/stop
+function toggleMetronome() {
+    isPlaying = !isPlaying;
+
+    // Clear target note when toggled off
+    if (isPlaying == false) {
+        document.getElementById('target-note').innerText = 'Target Note: ' // later make it so mode is a variable, that can change.
+    }
+
+    if (isPlaying) {
+        nextNoteTime = audioContext.currentTime;
+        scheduler();
+    }
+}
+
+// TODO: Make it so it picks a different string and note each time. No repeats
+function generateRandomNote(mode) {
+    if (mode == 0) {
+        return naturalNotesArray[Math.floor(Math.random() * naturalNotesArray.length)];
+    }
+    else if (mode == 1) {
+        return accidentalNotesArray[Math.floor(Math.random() * naturalNotesArray.length)];
+    }
+    else if (mode == 2) {
+        return allNotesArray[Math.floor(Math.random() * allNotesArray.length)];
+    }
+}
+
+// Makes Notes equal regardless of octave. A2 and A5 are equal. It's just A. A#2
+function isCorrectNotePlayed() {
+    let simpleTargetNote = null;
+    let simpleCurrentNote = null;
+    if (targetNote.includes('#')) {
+        simpleTargetNote = targetNote.slice(0, 2);
+    }
+    else {
+        simpleTargetNote = targetNote.slice(0, 1);
+    }
+    if (currentNote.includes('#')) {
+        simpleCurrentNote = currentNote.slice(0, 2);
+    }
+    else {
+        simpleCurrentNote = currentNote.slice(0, 1);
+    }
+
+    if (simpleCurrentNote == simpleTargetNote) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
+}
+
+
+loadClickSound("Perc_Clap_lo.wav");
+
 var start_live_button = document.getElementById('toggleLive');
 start_live_button.addEventListener("click", toggleLiveInput)
+
+var start_game_button = document.getElementById('start-button'); // Toggle the metronome and note generation
+start_game_button.addEventListener("click", toggleMetronome)
